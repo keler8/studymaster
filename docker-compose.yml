@@ -28,8 +28,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.web
-    depends_on:
-      - api
+      args:
+        GEMINI_API_KEY: ${GEMINI_API_KEY}
     networks:
       - appnet
     ports:
