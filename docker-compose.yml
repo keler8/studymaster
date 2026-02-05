@@ -33,23 +33,11 @@ services:
     networks:
       - appnet
     ports:
-      - "8080:80"   # LAN: http://IP-DE-LA-VM:8080
-    restart: unless-stopped
-
-  db_data:
-  cloudflared:
-    image: cloudflare/cloudflared:latest
-    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
-    environment:
-      CLOUDFLARE_TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN}"
-    depends_on:
-      - web
-    networks:
-      - appnet
+      - "${WEB_PORT:-8088}:80"
     restart: unless-stopped
 
 networks:
   appnet:
 
-
-
+volumes:
+  db_data:

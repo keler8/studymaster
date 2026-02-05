@@ -1,70 +1,84 @@
+import { Subject, AuthorizedUser } from '../types';
 
-import { Subject, AuthorizedUser, Topic } from '../types';
-
-const USERS_KEY = 'study_master_authorized_users';
-const SUBJECTS_KEY = 'study_master_subjects';
 const STREAK_KEY = 'study_master_streak_data';
 
-// Usamos credenciales genéricas que no disparen las alertas de GitHub
+// Defaults kept client-side for convenience; the server also seeds an admin.
 const ADMIN_EMAIL = 'dgutierrez@gecoas.com';
-const DEFAULT_PASS = 'Access2024'; 
+const DEFAULT_PASS = 'Access2024';
+
+async function api<T>(path: string, opts: RequestInit = {}): Promise<T> {
+  const res = await fetch(path, {
+    headers: { 'Content-Type': 'application/json', ...(opts.headers || {}) },
+    ...opts,
+  });
+  if (!res.ok) {
+    const msg = await res.text().catch(() => '');
+    throw new Error(`API ${res.status}: ${msg || res.statusText}`);
+  }
+  // 204 no content
+  if (res.status === 204) return undefined as unknown as T;
+  return res.json() as Promise<T>;
+}
 
 class DatabaseService {
   async getAuthorizedUsers(): Promise<AuthorizedUser[]> {
-    const saved = localStorage.getItem(USERS_KEY);
-    if (!saved) {
-      const defaultAdmin: AuthorizedUser = {
+    try {
+      const users = await api<AuthorizedUser[]>('/api/users');
+      // Ensure there is always at least one admin client-side fallback
+      if (!users?.length) {
+        return [{
+          id: 'admin-001',
+          email: ADMIN_EMAIL,
+          password: DEFAULT_PASS,
+          isAdmin: true,
+          name: 'Daniel Gutiérrez'
+        }];
+      }
+      return users;
+    } catch (e) {
+      // Offline/dev fallback: keep previous behavior
+      return [{
         id: 'admin-001',
         email: ADMIN_EMAIL,
         password: DEFAULT_PASS,
         isAdmin: true,
         name: 'Daniel Gutiérrez'
-      };
-      const initialUsers = [defaultAdmin];
-      localStorage.setItem(USERS_KEY, JSON.stringify(initialUsers));
-      return initialUsers;
+      }];
     }
-    return JSON.parse(saved);
   }
 
   async saveAuthorizedUsers(users: AuthorizedUser[]): Promise<void> {
-    localStorage.setItem(USERS_KEY, JSON.stringify(users));
+    await api<{ ok: boolean }>('/api/users', {
+      method: 'PUT',
+      body: JSON.stringify(users),
+    });
   }
 
   async getSubjects(userId: string): Promise<Subject[]> {
-    const saved = localStorage.getItem(SUBJECTS_KEY);
-    if (!saved) return [];
-    const allSubjects: Subject[] = JSON.parse(saved);
-    return allSubjects.filter(s => s.ownerId === userId);
+    return api<Subject[]>(`/api/subjects?ownerId=${encodeURIComponent(userId)}`);
   }
 
   async createSubject(subject: Subject): Promise<void> {
-    const saved = localStorage.getItem(SUBJECTS_KEY);
-    const allSubjects: Subject[] = saved ? JSON.parse(saved) : [];
-    allSubjects.push(subject);
-    localStorage.setItem(SUBJECTS_KEY, JSON.stringify(allSubjects));
+    await api<{ ok: boolean }>('/api/subjects', {
+      method: 'POST',
+      body: JSON.stringify(subject),
+    });
   }
 
   async updateSubject(updatedSubject: Subject): Promise<void> {
-    const saved = localStorage.getItem(SUBJECTS_KEY);
-    if (!saved) return;
-    const allSubjects: Subject[] = JSON.parse(saved);
-    const index = allSubjects.findIndex(s => s.id === updatedSubject.id);
-    if (index !== -1) {
-      allSubjects[index] = updatedSubject;
-      localStorage.setItem(SUBJECTS_KEY, JSON.stringify(allSubjects));
-    }
+    await api<{ ok: boolean }>(`/api/subjects/${encodeURIComponent(updatedSubject.id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(updatedSubject),
+    });
   }
 
   async deleteSubject(id: string): Promise<void> {
-    const saved = localStorage.getItem(SUBJECTS_KEY);
-    if (!saved) return;
-    const allSubjects: Subject[] = JSON.parse(saved);
-    const filtered = allSubjects.filter(s => s.id !== id);
-    localStorage.setItem(SUBJECTS_KEY, JSON.stringify(filtered));
+    await api<{ ok: boolean }>(`/api/subjects/${encodeURIComponent(id)}`, {
+      method: 'DELETE',
+    });
   }
 
-  // Utilidades de racha
+  // Streak remains local (per-device). If you want it global, we can move it server-side too.
   getStreak(): { count: number, lastDate: string } {
     const saved = localStorage.getItem(STREAK_KEY);
     if (!saved) return { count: 0, lastDate: '' };
@@ -74,20 +88,21 @@ class DatabaseService {
   updateStreak(): number {
     const now = new Date().toDateString();
     const streak = this.getStreak();
-    
-    if (streak.lastDate === now) return streak.count;
-    
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    
-    let newCount = 1;
-    if (streak.lastDate === yesterday.toDateString()) {
-      newCount = streak.count + 1;
+
+    if (streak.lastDate !== now) {
+      const yesterday = new Date();
+      yesterday.setDate(yesterday.getDate() - 1);
+
+      const wasYesterday = streak.lastDate === yesterday.toDateString();
+      const newCount = wasYesterday ? streak.count + 1 : 1;
+
+      const newStreak = { count: newCount, lastDate: now };
+      localStorage.setItem(STREAK_KEY, JSON.stringify(newStreak));
+      return newCount;
     }
-    
-    localStorage.setItem(STREAK_KEY, JSON.stringify({ count: newCount, lastDate: now }));
-    return newCount;
+
+    return streak.count;
   }
 }
 
-export const db = new DatabaseService();
+export const databaseService = new DatabaseService();
