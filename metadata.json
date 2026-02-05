@@ -1,0 +1,8 @@
+{
+  "name": "StudyMaster",
+  "description": "App con tutor personal para ayudar al alumno a estudiar",
+  "requestFramePermissions": [
+    "camera",
+    "microphone"
+  ]
+}
