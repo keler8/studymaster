@@ -1,0 +1,55 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-studymaster}
+      POSTGRES_USER: ${POSTGRES_USER:-studymaster}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-studymaster_password}
+    volumes:
+      - db_data:/var/lib/postgresql/data
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  api:
+    build:
+      context: ./server
+    environment:
+      PORT: "3001"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-studymaster}:${POSTGRES_PASSWORD:-studymaster_password}@db:5432/${POSTGRES_DB:-studymaster}"
+      GEMINI_API_KEY: "${GEMINI_API_KEY}"
+    depends_on:
+      - db
+    networks:
+      - appnet
+    restart: unless-stopped
+
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.web
+    depends_on:
+      - api
+    networks:
+      - appnet
+    ports:
+      - "8080:80"   # LAN: http://IP-DE-LA-VM:8080
+    restart: unless-stopped
+
+  db_data:
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      CLOUDFLARE_TUNNEL_TOKEN: "${CLOUDFLARE_TUNNEL_TOKEN}"
+    depends_on:
+      - web
+    networks:
+      - appnet
+    restart: unless-stopped
+
+networks:
+  appnet:
+
+
+

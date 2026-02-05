@@ -13,6 +13,16 @@ View your app in AI Studio: https://ai.studio/apps/drive/1Km28OIyVDHRHP8M1IjpNAv
 
 **Prerequisites:**  Node.js
 
+Crea el .env
+
+GEMINI_API_KEY=TU_KEY_REAL
+POSTGRES_DB=studymaster
+POSTGRES_USER=studymaster
+POSTGRES_PASSWORD=studymaster_password
+CLOUDFLARE_TUNNEL_TOKEN=token
+
+
+
 
 1. Install dependencies:
    `npm install`
